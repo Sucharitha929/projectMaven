@@ -1,10 +1,10 @@
 ---
 - name: Deploy application
-  hosts: docker_servers
+  hosts: docker_server
   become: true
 
   vars:
-    docker_image: "balakrishnasetlem/projectmaven"
+    docker_image: "sucharitha929/projectmaven"
     image_tag: "latest"
 
   tasks:
