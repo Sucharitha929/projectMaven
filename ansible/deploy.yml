@@ -1,0 +1,30 @@
+---
+- name: Deploy application
+  hosts: docker_servers
+  become: true
+
+  vars:
+    docker_image: "balakrishnasetlem/projectmaven"
+    image_tag: "latest"
+
+  tasks:
+
+    - name: Pull Docker image
+      community.docker.docker_image:
+        name: "{{ docker_image }}"
+        tag: "{{ image_tag }}"
+        source: pull
+
+    - name: Remove old container
+      community.docker.docker_container:
+        name: devops-tomcat
+        state: absent
+
+    - name: Start application
+      community.docker.docker_container:
+        name: devops-tomcat
+        image: "{{ docker_image }}:{{ image_tag }}"
+        state: started
+        restart_policy: always
+        ports:
+          - "8090:8080"
