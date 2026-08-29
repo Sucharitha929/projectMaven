@@ -1,0 +1,30 @@
+---
+- name: Deploy application
+  hosts: docker_server
+  become: true
+
+  vars:
+    docker_image: "sucharitha929/projectnginx"
+    image_tag: "latest"
+
+  tasks:
+
+    - name: Pull Docker image
+      community.docker.docker_image:
+        name: "{{ docker_image }}"
+        tag: "{{ image_tag }}"
+        source: pull
+
+    - name: Remove old container
+      community.docker.docker_container:
+        name: devops-nginx
+        state: absent
+
+    - name: Start Nginx application
+      community.docker.docker_container:
+        name: devops-nginx
+        image: "{{ docker_image }}:{{ image_tag }}"
+        state: started
+        restart_policy: always
+        ports:
+          - "8010:80"
