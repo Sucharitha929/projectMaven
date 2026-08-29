@@ -1,0 +1,2 @@
+[docker_server]
+172.31.33.53 ansible_user=ansible
