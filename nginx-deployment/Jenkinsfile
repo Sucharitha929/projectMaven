@@ -1,0 +1,150 @@
+
+pipeline {
+
+    agent any
+
+    environment {
+        DOCKER_IMAGE = "sucharitha929/projectnginx"
+        DOCKER_TAG   = "latest"
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                git branch: 'main',
+                    url: 'https://github.com/Sucharitha929/projectMaven.git',
+                    credentialsId: 'github-accesstocken'
+            }
+        }
+
+        stage('Verify HTML') {
+            steps {
+                sh '''
+                    echo "Checking HTML application..."
+                    ls -l
+                    test -f index.html
+                    echo "index.html found successfully"
+                '''
+            }
+        }
+
+        stage('Docker Build') {
+    steps {
+        sh """
+            docker build \
+            -t ${DOCKER_IMAGE}:${DOCKER_TAG} \
+            nginx-deployment/
+        """
+    }
+}
+
+        stage('Docker Login') {
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'dockerhub-credentials',
+                        usernameVariable: 'DOCKER_USERNAME',
+                        passwordVariable: 'DOCKER_PASSWORD'
+                    )
+                ]) {
+
+                    sh '''
+                        echo "$DOCKER_PASSWORD" | \
+                        docker login \
+                        -u "$DOCKER_USERNAME" \
+                        --password-stdin
+                    '''
+                }
+            }
+        }
+
+        stage('Docker Push') {
+            steps {
+                sh '''
+                    docker push ${DOCKER_IMAGE}:${DOCKER_TAG}
+                '''
+            }
+        }
+
+        stage('Ansible Deploy') {
+            steps {
+                withCredentials([
+                    sshUserPrivateKey(
+                        credentialsId: 'ansible-access',
+                        keyFileVariable: 'SSH_KEY',
+                        usernameVariable: 'SSH_USER'
+                    )
+                ]) {
+
+                    sh '''
+                        mkdir -p ~/.ssh
+                        chmod 700 ~/.ssh
+
+                        ssh-keyscan -H 172.31.33.53 >> ~/.ssh/known_hosts
+
+                        chmod 600 "$SSH_KEY"
+
+                        ansible-playbook \
+                            -i nginx-deployment/ansible/inventory \
+                            nginx-deployment/ansible/deploy.yml \
+                            --private-key "$SSH_KEY" \
+                            -u "$SSH_USER"
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+
+        success {
+            echo 'Nginx application deployed successfully!'
+
+            mail(
+                to: 'dsucharitha.99@gmail.com',
+                subject: "SUCCESS: ${JOB_NAME} #${BUILD_NUMBER}",
+                body: """
+Build Status: SUCCESS
+
+Job Name: ${JOB_NAME}
+Build Number: ${BUILD_NUMBER}
+Build Duration: ${currentBuild.durationString}
+Build URL: ${BUILD_URL}
+
+Nginx application has been deployed successfully using:
+
+Jenkins → Docker → Docker Hub → Ansible → Nginx
+
+Regards,
+Jenkins
+"""
+            )
+        }
+
+        failure {
+            echo 'Nginx deployment pipeline failed!'
+
+            mail(
+                to: 'dsucharitha.99@gmail.com',
+                subject: "FAILED: ${JOB_NAME} #${BUILD_NUMBER}",
+                body: """
+Build Status: FAILED
+
+Job Name: ${JOB_NAME}
+Build Number: ${BUILD_NUMBER}
+Build Duration: ${currentBuild.durationString}
+Build URL: ${BUILD_URL}
+
+The Nginx deployment pipeline has failed.
+
+Please check the Jenkins console output for details.
+
+Regards,
+Jenkins
+"""
+            )
+        }
+    }
+}
+
